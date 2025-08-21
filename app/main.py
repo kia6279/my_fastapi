@@ -1,13 +1,13 @@
 from fastapi import FastAPI, Response, status, HTTPException, Depends
 from fastapi.params import Body
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from random import randrange
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from sqlalchemy.orm import Session
 import time
-from . import models
+from . import models, schemas
 from .  database import engine, get_db
 
 
@@ -21,12 +21,6 @@ models.Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
 
-
-class Post(BaseModel):
-    title: str
-    content: str
-    published: bool = True
-    rating: Optional[int]= None
 
 
 while True:
@@ -63,36 +57,34 @@ async def root():
 ### CRUD OPERATIONS
 
 
-@app.get('/posts')
+@app.get('/posts', response_model=List[schemas.Post])
 def get_post(db: Session = Depends(get_db)):
 
     post = db.query(models.Post).all()
     
-    return {"data": post}
+    return post
 
 
-@app.post("/posts")
-def create_posts(post: Post, db: Session = Depends(get_db)):
+@app.post("/posts", response_model=schemas.Post)
+def create_posts(post: schemas.PostCreate, db: Session = Depends(get_db)):
 
     new_post = models.Post(**post.dict())
 
     db.add(new_post)
     db.commit()
-    db.refreash(new_post)
+    db.refresh(new_post)
     
-
-
    
-    return {"data": post}
+    return new_post
 
 
-@app.get("/post/latest")
+@app.get("/post/latest", response_model=schemas.Post)
 def get_latest():
     post = my_posts[len(my_posts) -1]
     return {"latest": post}
 
 
-@app.get("/posts/{id}")
+@app.get("/posts/{id}", response_model=schemas.Post)
 def get_post(id: int, db:Session = Depends(get_db)):
     print(id)
     post = find_post(id)
@@ -104,7 +96,7 @@ def get_post(id: int, db:Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, message = f"Post with  id: {id} was not found")
         
     print(post)
-    return {"post_detail": post}
+    return  post
 
 
 
@@ -124,8 +116,8 @@ def delete_post(id: int, db: Session = Depends(get_db)):
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@app.put("/posts/{id}")
-def update_post(id: int, post: Post, db: Session = Depends(get_db)):
+@app.put("/posts/{id}", response_model=schemas.Post)
+def update_post(id: int, post: schemas.PostCreate, db: Session = Depends(get_db)):
     print(post)
 
     post = db.query(models.Post).filter(models.Post.id == id).first()
